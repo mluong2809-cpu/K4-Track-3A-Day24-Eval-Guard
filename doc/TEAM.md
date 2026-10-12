@@ -54,3 +54,5 @@ Chưa nộp; sẽ ghi commit, thời điểm và mọi thay đổi sau nộp khi
 - Contribution: Nguyen Minh Luong is the sole member and integration/submission owner. Source edits, local tests and the existing answers are the work evidence; no fabricated experiment numbers were added.
 
 - 2026-10-12 follow-up: user confirmed no Annoy environment. Added `src/nemo_exact_index.py` as an explicit NeMo embedding search provider using cached MiniLM weights and exact cosine ranking. NeMo initialization and a local semantic search smoke check succeeded. This backend difference must be disclosed with any later Phase C artifact.
+
+- Additional offline check: NeMo 0.10 input/output self-check flows were exercised with a local fake LLM through the exact MiniLM provider. Both rails reported stop=False for a fake `No` and stop=True for a fake `Yes`; this verifies rail wiring, not live model quality. All 88 offline tests pass, with three live tests deselected.

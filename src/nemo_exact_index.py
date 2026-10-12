@@ -34,11 +34,11 @@ def warm_model() -> None:
 class ExactMiniLMIndex(EmbeddingsIndex):
     def __init__(self):
         self._items: list[IndexItem] = []
-        self._vectors = np.empty((0, 384), dtype=np.float32)
+        self._vectors: Optional[np.ndarray] = None
 
     @property
     def embedding_size(self) -> int:
-        return self._vectors.shape[1]
+        return self._vectors.shape[1] if self._vectors is not None else 0
 
     @property
     def cache_config(self):
@@ -57,7 +57,8 @@ class ExactMiniLMIndex(EmbeddingsIndex):
         vectors = np.asarray(await self._get_embeddings([item.text for item in items]),
                              dtype=np.float32)
         self._items.extend(items)
-        self._vectors = np.concatenate((self._vectors, vectors), axis=0)
+        self._vectors = (np.concatenate((self._vectors, vectors), axis=0)
+                         if self._vectors is not None else vectors)
 
     async def build(self) -> None:
         if not self._items:
@@ -65,7 +66,7 @@ class ExactMiniLMIndex(EmbeddingsIndex):
 
     async def search(self, text: str, max_results: int = 20,
                      threshold: Optional[float] = None) -> list[IndexItem]:
-        if max_results <= 0 or not self._items:
+        if max_results <= 0 or not self._items or self._vectors is None:
             return []
         query = np.asarray((await self._get_embeddings([text]))[0], dtype=np.float32)
         cosine = self._vectors @ query

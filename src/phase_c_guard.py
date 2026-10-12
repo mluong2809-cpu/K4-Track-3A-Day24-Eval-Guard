@@ -20,11 +20,13 @@ from config import (ADVERSARIAL_SET_PATH, GUARDRAILS_CONFIG_DIR, LATENCY_BUDGET_
 def setup_presidio():
     """Khởi tạo Presidio engine với custom Vietnamese PII recognizers. (Đã implement sẵn)
 
-    Custom recognizers thêm vào:
+    Pattern recognizers used:
         VN_CCCD  — số CCCD 12 chữ số hoặc CMND 9 chữ số
         VN_PHONE — số điện thoại Việt Nam (0[3-9]xxxxxxxx)
+        EMAIL_ADDRESS — địa chỉ email
 
-    Các recognizers mặc định đã có sẵn: EMAIL, PHONE_NUMBER (international), ...
+    A NoOp NLP engine keeps these deterministic recognizers usable without a
+    downloaded spaCy model; it does not perform general named-entity detection.
     """
     from presidio_analyzer import AnalyzerEngine, RecognizerRegistry, Pattern, PatternRecognizer
     from presidio_analyzer.nlp_engine import NoOpNlpEngine
