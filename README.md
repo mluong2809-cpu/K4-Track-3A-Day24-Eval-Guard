@@ -112,6 +112,10 @@ runtime. Cài dependencies/build tools, tải model, indexing và sinh answers
 python scripts/setup_answers.py --live
 ```
 
+Khi không được phép gửi câu hỏi/context ra API, dùng
+`python scripts/setup_answers.py --live --offline` để chạy retrieval local và lưu
+answer dạng extractive fallback. Báo rõ Qdrant/model fallback thực tế trong `doc/TEAM.md`.
+
 Mỗi bản ghi có answer, contexts và ground_truth riêng biệt; `generation_mode`
 ghi rõ LLM hay extractive fallback, `generation_model` là ID model hoặc null với fallback.
 Không dùng ground truth thay answer để tạo điểm đẹp. Task 2 trả RagasEvaluation

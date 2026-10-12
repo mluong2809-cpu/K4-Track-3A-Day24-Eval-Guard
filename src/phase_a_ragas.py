@@ -3,6 +3,7 @@ from __future__ import annotations
 """Phase A: RAGAS Production Evaluation — 50q, 3 distributions, cluster analysis."""
 
 import json
+import math
 import os
 import sys
 from dataclasses import asdict, dataclass
@@ -114,12 +115,14 @@ def group_by_distribution(test_set: list[dict]) -> dict[str, list[dict]]:
     Returns:
         {"factual": [...], "multi_hop": [...], "adversarial": [...]}
     """
-    # TODO: Implement
     # groups = {"factual": [], "multi_hop": [], "adversarial": []}
     # for item in test_set:
     #     groups[item["distribution"]].append(item)
     # return groups
-    return {"factual": [], "multi_hop": [], "adversarial": []}
+    groups = {name: [] for name in ("factual", "multi_hop", "adversarial")}
+    for item in test_set:
+        groups[item["distribution"]].append(item)
+    return groups
 
 
 def run_ragas_50q(answers: list[dict]) -> RagasEvaluation:
@@ -135,7 +138,6 @@ def run_ragas_50q(answers: list[dict]) -> RagasEvaluation:
         4. Return RagasEvaluation(results, raw["metadata"]["evaluator_models"])
            m4 must report its actual LLM/embedding models; never guess JUDGE_MODEL.
     """
-    # TODO: Implement
     # try:
     #     from src.m4_eval import evaluate_ragas
     # except ImportError:
@@ -160,7 +162,34 @@ def run_ragas_50q(answers: list[dict]) -> RagasEvaluation:
     #         context_precision=float(pq.context_precision), context_recall=float(pq.context_recall),
     #     ))
     # return RagasEvaluation(results, raw["metadata"]["evaluator_models"])
-    return RagasEvaluation([], [])
+    from src.m4_eval import evaluate_ragas
+
+    raw = evaluate_ragas(
+        [a["question"] for a in answers],
+        [a["answer"] for a in answers],
+        [a["contexts"] for a in answers],
+        [a["ground_truth"] for a in answers],
+    )
+    per_question = raw["per_question"]
+    if len(per_question) != len(answers):
+        raise ValueError("m4 returned a different number of rows")
+    models = raw["metadata"]["evaluator_models"]
+    if not isinstance(models, list) or not models or any(
+            not isinstance(model, str) or not model.strip() for model in models):
+        raise ValueError("m4 must report actual evaluator models")
+    names = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+    results = []
+    for answer, row in zip(answers, per_question):
+        values = {name: float(row[name] if isinstance(row, dict) else getattr(row, name))
+                  for name in names}
+        if any(not math.isfinite(value) or not 0 <= value <= 1 for value in values.values()):
+            raise ValueError(f"Invalid RAGAS score for question {answer['id']}")
+        results.append(RagasResult(
+            question_id=answer["id"], distribution=answer["distribution"],
+            question=answer["question"], answer=answer["answer"],
+            contexts=answer["contexts"], ground_truth=answer["ground_truth"], **values,
+        ))
+    return RagasEvaluation(results, models)
 
 
 def bottom_10(results: list[RagasResult]) -> list[dict]:
@@ -171,7 +200,6 @@ def bottom_10(results: list[RagasResult]) -> list[dict]:
           "question": ..., "avg_score": ..., "worst_metric": ...,
           "diagnosis": ..., "suggested_fix": ...}, ...]
     """
-    # TODO: Implement
     # sorted_asc = sorted(results, key=lambda r: r.avg_score)
     # bottom = sorted_asc[:10]
     # output = []
@@ -188,7 +216,21 @@ def bottom_10(results: list[RagasResult]) -> list[dict]:
     #         "suggested_fix": fix,
     #     })
     # return output
-    return []
+    output = []
+    for rank, row in enumerate(sorted(results, key=lambda r: r.avg_score)[:10], 1):
+        diagnosis, fix = DIAGNOSTIC_TREE[row.worst_metric]
+        context_text = " ".join(row.contexts).lower()
+        if row.distribution == "adversarial" and ("2023" in context_text or "v1" in context_text):
+            diagnosis = "Potential old-policy or version conflict in retrieved contexts"
+            fix = "Filter by effective policy version and compare with the current reference"
+        elif row.distribution == "multi_hop" and row.context_recall < row.context_precision:
+            diagnosis = "Retrieved context may omit a required step or condition"
+            fix = "Retrieve both policy sections and verify each required condition"
+        output.append({"rank": rank, "question_id": row.question_id,
+                       "distribution": row.distribution, "question": row.question,
+                       "avg_score": round(row.avg_score, 4), "worst_metric": row.worst_metric,
+                       "diagnosis": diagnosis, "suggested_fix": fix})
+    return output
 
 
 def cluster_analysis(results: list[RagasResult]) -> dict:
@@ -211,7 +253,6 @@ def cluster_analysis(results: list[RagasResult]) -> dict:
           "insight": "..."
         }
     """
-    # TODO: Implement
     # matrix = {
     #     metric: {"factual": 0, "multi_hop": 0, "adversarial": 0}
     #     for metric in DIAGNOSTIC_TREE
@@ -235,7 +276,21 @@ def cluster_analysis(results: list[RagasResult]) -> dict:
     # return {"matrix": matrix, "distribution_avg_scores": means,
     #         "dominant_failure_distribution": dominant_dist,
     #         "dominant_failure_metric": dominant_metric, "insight": insight}
-    return {}
+    distributions = ("factual", "multi_hop", "adversarial")
+    matrix = {metric: {dist: 0 for dist in distributions} for metric in DIAGNOSTIC_TREE}
+    for row in results:
+        matrix[row.worst_metric][row.distribution] += 1
+    means = {dist: sum(row.avg_score for row in subset) / len(subset)
+             for dist in distributions
+             if (subset := [row for row in results if row.distribution == dist])}
+    weakest = min(means, key=means.get) if means else None
+    dominant_metric = max(matrix, key=lambda metric: sum(matrix[metric].values()))
+    insight = (f"{weakest} has the lowest four-metric mean ({means[weakest]:.3f}). "
+               f"{dominant_metric} is the most frequent minimum; inspect the source text "
+               "before inferring a root cause." if weakest else "No results to analyze.")
+    return {"matrix": matrix, "distribution_avg_scores": means,
+            "dominant_failure_distribution": weakest,
+            "dominant_failure_metric": dominant_metric, "insight": insight}
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────

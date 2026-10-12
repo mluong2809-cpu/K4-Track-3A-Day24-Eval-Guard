@@ -3,12 +3,13 @@ Setup script: chạy Day 18 pipeline trên 50 câu hỏi → lưu artifacts/answ
 
 Chạy TRƯỚC khi bắt đầu Phase A:
     python scripts/setup_answers.py --live
+    python scripts/setup_answers.py --live --offline  # local extractive fallback
 
 Yêu cầu:
     1. Có 5 module m1-m5 với giao diện trong doc/PIPELINE_INTERFACE.md
        Script tự lắp module; không gọi src/pipeline.py.
     2. docker compose -f infra/docker-compose.yml up -d  (Qdrant đang chạy trên port 6333)
-    3. .env có OPENAI_API_KEY
+    3. .env có OPENAI_API_KEY hoặc GEMINI_API_KEY nếu dùng LLM generation
 """
 from __future__ import annotations
 
@@ -82,19 +83,21 @@ def build_pipeline():
     return search, reranker, RERANK_TOP_K
 
 
-def run_query(q: str, search, reranker, top_k: int, client=None) -> tuple[str, list[str], str, str | None]:
-    from config import OPENAI_API_KEY
+def run_query(q: str, search, reranker, top_k: int, client=None,
+              *, allow_api: bool = True) -> tuple[str, list[str], str, str | None]:
+    from config import OPENAI_API_KEY, GEMINI_API_KEY, GEMINI_BASE_URL
 
     results = search.search(q)
     docs    = [{"text": r.text, "score": r.score, "metadata": r.metadata} for r in results]
     reranked = reranker.rerank(q, docs, top_k=top_k)
     contexts = [r.text for r in reranked] if reranked else [r.text for r in results[:3]]
 
-    if (OPENAI_API_KEY or client is not None) and contexts:
+    if allow_api and (OPENAI_API_KEY or GEMINI_API_KEY or client is not None) and contexts:
         try:
             if client is None:
                 from openai import OpenAI
-                client = OpenAI()
+                client = OpenAI(api_key=OPENAI_API_KEY or GEMINI_API_KEY,
+                                **({"base_url": GEMINI_BASE_URL} if not OPENAI_API_KEY else {}))
             ctx = "\n\n".join(contexts)
             resp = client.chat.completions.create(
                 model=GENERATION_MODEL,
@@ -115,6 +118,8 @@ def run_query(q: str, search, reranker, top_k: int, client=None) -> tuple[str, l
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Assemble previous modules and generate 50 answers (API cost).")
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--offline", action="store_true",
+                        help="Use local retrieval and extractive answers; never call generation API.")
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("Generation/enrichment may call APIs. Pass --live after completing pre-class setup.")
@@ -138,15 +143,17 @@ def main(argv=None):
 
     print(f"\nRunning {len(test_set)} queries...")
     answers = []
-    from config import OPENAI_API_KEY
+    from config import OPENAI_API_KEY, GEMINI_API_KEY, GEMINI_BASE_URL
     client = None
-    if OPENAI_API_KEY:
+    if not args.offline and (OPENAI_API_KEY or GEMINI_API_KEY):
         from openai import OpenAI
-        client = OpenAI()
+        client = OpenAI(api_key=OPENAI_API_KEY or GEMINI_API_KEY,
+                        **({"base_url": GEMINI_BASE_URL} if not OPENAI_API_KEY else {}))
     t_start = time.time()
 
     for i, item in enumerate(test_set):
-        answer, contexts, generation_mode, generation_model = run_query(item["question"], search, reranker, top_k, client)
+        answer, contexts, generation_mode, generation_model = run_query(
+            item["question"], search, reranker, top_k, client, allow_api=not args.offline)
         answers.append({
             "id":           item["id"],
             "distribution": item["distribution"],

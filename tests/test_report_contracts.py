@@ -194,6 +194,17 @@ def test_generation_records_provider_model_and_null_fallback(monkeypatch):
     assert setup_answers.run_query("Q", search, reranker, 3, client)[2:] == ("extractive_fallback", None)
 
 
+def test_offline_generation_never_calls_provider():
+    from scripts import setup_answers
+    search = SimpleNamespace(search=lambda q: [SimpleNamespace(text="context", score=.8, metadata={})])
+    reranker = SimpleNamespace(rerank=lambda q, docs, top_k: [SimpleNamespace(text="context")])
+    client = Mock()
+    answer, contexts, mode, model = setup_answers.run_query(
+        "Q", search, reranker, 3, client, allow_api=False)
+    assert (answer, contexts, mode, model) == ("context", ["context"], "extractive_fallback", None)
+    client.chat.completions.create.assert_not_called()
+
+
 def test_checker_really_uses_all_supplied_report_schemas(tmp_path, answers, capsys):
     from scripts import check_lab
     source = Path(ROOT_DIR)

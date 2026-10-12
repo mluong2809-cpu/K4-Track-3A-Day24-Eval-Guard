@@ -1,45 +1,18 @@
-# Phân tích lỗi Phase A
+# Phase A - preliminary analysis and run status
 
-Nhóm: {{Tên nhóm}}
+Team: NguyenMinhLuong (individual). Owner: Nguyen Minh Luong, 2A202602618.
 
-Người phụ trách: {{Họ tên và MSSV}}
+Inputs: `artifacts/answers_50q.json` and `fixtures/test_set_50q.json`. The 50 answers retain all ids and distributions (20 factual, 20 multi_hop, 10 adversarial), with three contexts each. All 50 are `extractive_fallback` with `generation_model=null`.
 
-Nguồn: `artifacts/ragas_50q.json`; run timestamp: {{created_at}}.
-Generation mode/fallback và điều kiện chạy: {{Điều kiện thực tế}}.
-Models generation/evaluator: {{metadata.models.generation và metadata.models.evaluator từ m4}}.
+## RAGAS results
 
-## Điểm theo distribution
+**Not measured.** `artifacts/ragas_50q.json` does not exist. RAGAS initialized Gemini and the local MiniLM embeddings, but automatic approval rejected sending the 50 questions, answers, contexts and references to Gemini. There are no valid metric values, bottom 10 by score, worst-metric matrix, distribution means, or evaluator metadata from a completed run. None are inferred or fabricated here.
 
-| Metric | factual (20) | multi_hop (20) | adversarial (10) |
-|---|---|---|---|
-| faithfulness | {{factual_faithfulness}} | {{multi_faithfulness}} | {{adversarial_faithfulness}} |
-| answer_relevancy | {{factual_relevancy}} | {{multi_relevancy}} | {{adversarial_relevancy}} |
-| context_precision | {{factual_precision}} | {{multi_precision}} | {{adversarial_precision}} |
-| context_recall | {{factual_recall}} | {{multi_recall}} | {{adversarial_recall}} |
-| avg_score | {{factual_mean}} | {{multi_mean}} | {{adversarial_mean}} |
+## Direct observations from saved answers
 
-## Bottom 10 và nguyên nhân
+- ID 41 asks for current annual-leave days. The answer quotes the registration procedure from the 2024 file but omits the 15-day allowance; the reference distinguishes the obsolete 12-day rule. Retrieve the allowance section and verify both the count and the policy version.
+- ID 47 asks whether staff should handle malware themselves. The answer quotes incident-severity timing but misses the required negation and one-hour reporting procedure. Retrieve the handling procedure and verify the negation and deadline.
+- ID 49 asks about both the old and current policy. The answer quotes only the 2023 version. Retrieve both versions and state which one remains effective.
+- ID 50 asks about personal VPN use while working from home. Retrieval supplied a performance-review document. Add VPN-specific retrieval and source relevance checks.
 
-{{Điền đúng 10 rows từ Task 3: rank, id, question, distribution, avg_score,
-worst_metric, diagnosis và suggested_fix. Không thay diagnosis học viên bằng
-diagnosis mặc định của exporter.}}
-
-{{Đối chiếu answer/contexts/reference của ít nhất các câu đại diện cho nhóm lỗi;
-giải thích lỗi retrieval, generation, phiên bản hoặc phủ định bằng bằng chứng.}}
-
-## Matrix và nhóm yếu nhất
-
-{{Điền matrix 4 metric × 3 distributions. Mỗi câu được đếm theo worst_metric,
-không coi mọi câu là failure.}}
-
-Nhóm yếu theo mean thấp nhất: {{distribution}}; mean: {{giá trị}}.
-Worst metric xuất hiện nhiều nhất: {{metric}}; số câu: {{số lượng}}.
-
-{{Giải thích vì sao nhóm đó yếu. Không dùng tổng 20/20/10 chọn dominant distribution.
-Đề xuất sửa cụ thể và cách chạy lại để biết sửa có hiệu quả.}}
-
-## Bẫy adversarial và giới hạn
-
-{{So sánh với factual/multi_hop, nêu version conflict/negation trong bottom 10.
-Điểm thấp hơn không tự chứng minh pipeline đã nhận ra bẫy. Ghi giới hạn số mẫu,
-model và fallback nếu có.}}
+These observations come from the saved text; they are **not** a RAGAS bottom 10. Once the live run is approved, run `python scripts/run_experiments.py --phase a --live`, populate all four metric columns, the bottom 10 and matrix from its JSON, and choose the weakest distribution using the lowest mean `avg_score`.
