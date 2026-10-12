@@ -1,58 +1,42 @@
-# Nhóm thực hiện K4 Track 3A
+# Nhóm K4 Track 3A Day 24
 
-Tên nhóm: NguyenMinhLuong (làm cá nhân)
-
-Repo chung: https://github.com/mluong2809-cpu/K4-Track-3A-Day24-Eval-Guard
-
-Trưởng nhóm/người nộp: Nguyễn Minh Lương — 2A202602618
-
-Ngày lab/deadline áp dụng: Chưa có thông báo riêng của coach; áp dụng quy định trong `doc/SUBMISSION.md` (23:59 ngày lab, Asia/Ho_Chi_Minh).
-
-Commit dùng để chấm: Chưa chốt; sẽ ghi SHA sau khi hoàn thành và push.
+- Tên nhóm: **NguyenMinhLuong** (làm cá nhân).
+- Repo chung và nơi nộp: https://github.com/mluong2809-cpu/K4-Track-3A-Day24-Eval-Guard
+- Trưởng nhóm, người tích hợp, chạy batch và nộp link: **Nguyễn Minh Lương — 2A202602618**.
+- Commit dùng để chấm: HEAD của `origin/main` tại thời điểm nộp; SHA được gửi cùng link repo. Không tự ghi SHA của chính commit vào file vì nội dung đó sẽ đổi SHA.
+- Deadline áp dụng: 23:59 ngày làm lab, Asia/Ho_Chi_Minh, trừ khi coach thông báo khác.
 
 ## Thành viên và phân công
 
-| STT | Họ và tên | MSSV | Vai trò / công việc thật | Bằng chứng |
-|---|---|---|---|---|
-| 1 | Nguyễn Minh Lương | 2A202602618 | Phụ trách toàn bộ CP0–CP4; hiện đã tích hợp pipeline và chạy batch CP0 | `src/m1_chunking.py`–`src/m5_enrichment.py`, `scripts/setup_answers.py`, `artifacts/answers_50q.json`; các phase sau và commit sẽ cập nhật theo kết quả thực tế |
+| Thành viên | MSSV | Công việc thực tế | Bằng chứng |
+|---|---|---|---|
+| Nguyễn Minh Lương | 2A202602618 | Cá nhân thực hiện toàn bộ: tích hợp m1–m5, tạo 50 answers, Tasks 1–12, Task 13, chạy và kiểm tra A/B/C, báo cáo, Git | `src/`, `scripts/`, `artifacts/`, `doc/reports/`, lịch sử commit và checker |
 
-Người tích hợp/chạy batch/nộp link: Nguyễn Minh Lương. Đã chạy batch CP0; các phase sau chưa chạy.
+Không có thành viên khác; số dòng trong mẫu không quy định số người.
 
-## Môi trường và chuẩn bị trước lớp
+## Môi trường, dữ liệu và nguồn model
 
-- OS: Windows. Đã tạo `.venv` bằng Python 3.11.9; Python hệ thống là 3.13.3.
-- Dependencies: Python 3.11.9 `.venv` đã cài các requirements phục vụ CP0; `pip check` sạch, 61/61 tests support/report contracts pass. Đã import được Torch 2.9.1+cpu, SentenceTransformers 5.7.0 và RAGAS 0.1.22. Chưa cài Annoy và NeMo: full install bị chặn ở `annoy==1.17.3` do thiếu MSVC 14.0+. `pyarrow` đã pin 17.0.0 để tương thích NumPy 1.26.4.
-- Models: cache local có weights `all-MiniLM-L6-v2` (174 MB); snapshot `BAAI/bge-m3` và `BAAI/bge-reranker-v2-m3` chỉ có metadata, chưa có weights. Batch dùng MiniLM 384 chiều và lexical rerank fallback. spaCy `en_core_web_lg` chưa cài; đã thử tải wheel 400.7 MB nhưng dừng ở khoảng 172 MB do tốc độ tải quá thấp.
-- Qdrant: Docker Compose đã chạy container `qdrant/qdrant:v1.9.7`; HTTP `localhost:6333/` trả version `1.9.7`. Batch Python 3.11 đã index 102 points vào collection `lab24_production` trên container thật; endpoint collection trả trạng thái `green`.
-- API: Gemini key được giữ trong `.env` local bị Git ignore. Lượt gọi Gemini từ máy này bị auto-review từ chối vì có thể gửi câu hỏi/context corpus ra ngoài. Lần setup đầu thử gọi API nhưng 50 lượt đều báo `Connection error`; artifact cuối đã được tạo lại bằng `--offline`, chặn API trong code và dùng extractive fallback local.
-- Corpus: m1 báo hai PDF `BCTC.pdf` và `Nghi_dinh_so_13-2023_ve_bao_ve_du_lieu_ca_nhan_508ee.pdf` không có text layer, nên bị bỏ qua; các file markdown vẫn được nạp.
-- 50 answers: `.venv\Scripts\python.exe scripts/setup_answers.py --live --offline` tạo 50 rows trên Docker Qdrant với Python 3.11.9 và client Qdrant 1.9.2; factual/multi_hop/adversarial = 20/20/10, tất cả có contexts, 50/50 `generation_mode=extractive_fallback`, `generation_model=null`. `validate_answers` pass; 0 answer trùng nguyên văn ground_truth.
-- Tests: `.venv\Scripts\python.exe -m pytest tests/test_report_contracts.py tests/test_support.py -q` đạt 61/61; đây là kiểm tra offline, không chứng minh full NeMo đã cài.
+- Windows, Python 3.11.9 trong `.venv`; Qdrant Docker `qdrant/qdrant:v1.9.7` đang chạy. Batch chuẩn bị đã index 102 points vào collection `lab24_production`. Hai PDF không có text layer nên loader bỏ qua; corpus Markdown vẫn được nạp.
+- M1–m5 lấy từ pipeline bài trước và điều chỉnh adapter Qdrant/RAGAS. Weights `sentence-transformers/all-MiniLM-L6-v2` được cache local; BGE-M3/reranker chỉ có metadata, nên generation batch dùng MiniLM và lexical rerank fallback.
+- `artifacts/answers_50q.json`: đủ 50 IDs với 20 factual, 20 multi_hop, 10 adversarial; ba contexts mỗi câu. Toàn bộ là `generation_mode=extractive_fallback`, `generation_model=null`; không trình bày đây là answer do LLM tạo. Answers không sao chép nguyên ground truth. API key ở `.env` bị Git ignore.
+- NeMo Guardrails 0.10.0 hoạt động với `src/nemo_exact_index.py` (MiniLM + exact cosine) cho flow search vì Annoy 1.17.3 thiếu MSVC Build Tools trên máy. Đây là khác biệt backend so với starter, chỉ thay flow search, vẫn gọi NeMo self-check LLM thật. Presidio dùng regex recognizers cho CCCD/CMND, số điện thoại VN và email với NoOp NLP; chưa có spaCy `en_core_web_lg`, nên không nhận diện tên/ngữ cảnh tổng quát. `pip check` còn báo Annoy thiếu do gói NeMo khai dependency này.
+- Phase A dùng `gemini-3.5-flash-lite` qua Gemini API và MiniLM local cho RAGAS; sau 500 request/ngày của model này, Phase B chuyển sang `gemini-3.1-flash-lite`. Artifact ghi model ID theo đúng vai trò. Việc provider alias đổi snapshot nội bộ không xác minh được từ metadata.
 
-## INDIVIDUAL
+## Kết quả kiểm chứng
 
-### NguyenMinhLuong-2A202602618
+- Phase A: `artifacts/ragas_50q.json` có 50 per-question, bốn metric hữu hạn và evaluator metadata. Mean `avg_score`: factual 0.803, multi_hop 0.596, adversarial 0.793; multi_hop yếu nhất. Xem `doc/reports/failure_clusters.md` cho bottom 10 và phân tích từng câu.
+- Phase B: `artifacts/judge_results.json` có 5 cặp × 2 lượt, 10 binary judgments trên supplied `model_answer`; κ=1.0, swap disagreement 0/5, longer-winner 2/3 decisive. Xem `doc/reports/bias_report.md` để đối chiếu lý do và giới hạn mẫu nhỏ.
+- Phase C: batch thật đang thực hiện; kết quả, attack/clean/output và input-layer P95 sẽ được cập nhật sau khi artifact được lưu. Không suy số từ mock tests.
+- Tests offline: `.venv\Scripts\python.exe -m pytest tests/ -q` đạt **91 passed, 3 deselected**. Checker đã đạt source, answers, Phase A/B; còn thiếu artifact C ở thời điểm cập nhật này.
 
-- Phần được giao và phần thực tế đã làm: Làm cá nhân toàn bộ lab. Đã đưa m1–m5 từ repo Day 18 vào `src/`, sửa adapter Qdrant 1.9/newer và cấu hình generation để hỗ trợ key Gemini trong `.env` local.
-- Bằng chứng: source trong `src/`, thay đổi `config.py`, `scripts/setup_answers.py`, `.env.example`, `artifacts/answers_50q.json`.
-- Cách kiểm tra: `.venv\Scripts\python.exe scripts/setup_answers.py --live --offline` trên Python 3.11.9; `validate_answers` pass; 61/61 tests support/report contracts pass; Qdrant collection có 102 points và trạng thái `green`. Chưa có kiểm chứng Phase A/B/C.
-- Điều đã học: metadata model generation/evaluator phải phản ánh model thực dùng; fallback local phải ghi `generation_mode` và không được coi là LLM generation.
-- Giới hạn/cách xử lý: Docker đã chạy sau khi mở Desktop. Auto-review chặn gửi context sang Gemini; dùng extractive fallback và không gọi API trong lượt `--offline`. Annoy/NeMo cần C++ Build Tools (installer silent trả 1602); Torch Python 3.11 đã sửa lỗi DLL bằng pin 2.9.1.
-- Nguồn/AI hỗ trợ: Codex hỗ trợ kiểm tra môi trường và tích hợp; đối chiếu bằng source, lệnh chạy và artifact, không dùng kết quả tự dựng.
+## INDIVIDUAL — NguyenMinhLuong-2A202602618
+
+- **Phần đã làm:** tích hợp pipeline cũ; sửa adapter m4 giữ `metadata.evaluator_models`; implement group/evaluation/bottom/matrix, pairwise/swap/kappa/bias, Presidio/NeMo input/output/latency; viết test cho exact MiniLM index; chạy A/B thật; chuẩn bị C và báo cáo.
+- **Cách xác minh:** source và fixtures đối chiếu được bằng `scripts/check_lab.py`; 91 test offline đạt; artifact A/B lưu raw per-question/pairwise/binary; báo cáo liên kết ID với nguồn. Cần chạy lại checker sau C.
+- **Điều học được:** faithfulness cao của answer trích nguyên văn không bảo đảm đủ ý; phải chọn nhóm yếu bằng mean; calibration phải chấm đúng answer có nhãn người; clean controls phát hiện guard chặn quá tay; latency hai tầng input không phải full-request latency.
+- **Giới hạn và cách xử lý:** thiếu Annoy/MSVC nên dùng exact MiniLM index; thiếu spaCy model nên Presidio chỉ dùng recognizers xác định. Gemini 3.5 hết quota ngày sau A, dùng 3.1 cho B/C; một lỗi 503 tạm thời ở C được xử lý bằng retry có giới hạn. Không ghi kết quả C hoặc model generation chưa thực hiện như đã đo.
+- **Nguồn hỗ trợ:** Codex hỗ trợ code, tích hợp, kiểm tra và diễn giải; dữ liệu nguồn, phản hồi API và artifact được giữ để thành viên đối chiếu, không điền số giả.
 
 ## Cập nhật sau khi nộp
 
-Chưa nộp; sẽ ghi commit, thời điểm và mọi thay đổi sau nộp khi có.
-
-## Current integration update (2026-10-12)
-
-- Tasks 1-12 were implemented in `src/phase_a_ragas.py`, `src/phase_b_judge.py`, and `src/phase_c_guard.py`. `src/m4_eval.py` was adapted to the installed RAGAS 0.1.22 signature and Windows Torch import order. Gemini-compatible judge and guard configuration is prepared in memory; keys remain in local `.env`.
-- Offline verification: 87 passed, 3 integration tests deselected. The 50 saved answers are all extractive fallback with three contexts each; no live A/B/C artifact exists yet.
-- A live RAGAS attempt initialized the local embedding model, then hit a network connection failure. A retry under elevated network access was rejected by automatic approval review because it would send 50 questions, answers, contexts, and references to Gemini without a separate explicit approval for that payload and destination. No score was recorded.
-- NeMo 0.10.0 and its other Python dependencies installed, but Annoy 1.17.3 could not build without Microsoft C++ Build Tools. `setup_nemo_rails()` now uses a local exact-cosine MiniLM index when Annoy is absent; NeMo 0.10.0 initializes with this backend. This replaces only NeMo flow search, not the LLM rails. Phase C still has no live measurements because API-data approval is pending. `pip check` reports missing Annoy although the alternate backend works.
-- The three Markdown reports record preliminary observations and proposed gates, with all unavailable measurements marked as not measured. The offline checker passes source and answers but fails the three absent A/B/C JSON artifacts. This is not yet a complete submission.
-- Contribution: Nguyen Minh Luong is the sole member and integration/submission owner. Source edits, local tests and the existing answers are the work evidence; no fabricated experiment numbers were added.
-
-- 2026-10-12 follow-up: user confirmed no Annoy environment. Added `src/nemo_exact_index.py` as an explicit NeMo embedding search provider using cached MiniLM weights and exact cosine ranking. NeMo initialization and a local semantic search smoke check succeeded. This backend difference must be disclosed with any later Phase C artifact.
-
-- Additional offline check: NeMo 0.10 input/output self-check flows were exercised with a local fake LLM through the exact MiniLM provider. Both rails reported stop=False for a fake `No` and stop=True for a fake `Yes`; this verifies rail wiring, not live model quality. All 88 offline tests pass, with three live tests deselected.
+Chưa nộp; ghi thay đổi sau thời điểm nộp thành commit riêng nếu phát sinh.

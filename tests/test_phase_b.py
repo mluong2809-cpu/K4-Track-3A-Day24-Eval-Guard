@@ -1,4 +1,6 @@
 """Student logic uses mock SDK; never invokes the live judge."""
+import json
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -16,6 +18,20 @@ def test_pairwise_uses_json_judge(openai_client):
     call = openai_client.chat.completions.create.call_args.kwargs
     assert REF in str(call["messages"])
     assert call["response_format"] == {"type":"json_object"}
+
+
+@pytest.mark.parametrize("scores", [
+    {"scores": {"a": 0.8, "b": 0.6}},
+    {"scores_a": 0.8, "scores_b": 0.6},
+    {"score_a": 0.8, "score_b": 0.6},
+])
+def test_pairwise_normalizes_observed_gemini_score_shapes(openai_client, scores):
+    payload = {"winner": "a", "reasoning": "A covers the essential condition.", **scores}
+    openai_client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))])
+    result = phase.pairwise_judge(Q, A, B, reference=REF)
+    assert result["winner"] == "A"
+    assert result["scores"] == {"A": 0.8, "B": 0.6}
 
 
 @pytest.mark.parametrize("second_raw,expected,consistent", [("B","A",True),("A","tie",False)])

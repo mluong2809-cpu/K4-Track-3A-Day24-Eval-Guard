@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -20,6 +21,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("Real experiments require --live. Use python -m pytest for offline unit tests.")
+    os.environ["LAB_LIVE_RUN"] = "1"
     if not (OPENAI_API_KEY or GEMINI_API_KEY):
         parser.error("Set OPENAI_API_KEY or GEMINI_API_KEY in .env; never put the key in source.")
     from src import phase_a_ragas, phase_b_judge, phase_c_guard

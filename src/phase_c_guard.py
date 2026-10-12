@@ -115,8 +115,17 @@ def setup_nemo_rails():
             if model.type == "main":
                 model.model = GEMINI_MODEL
                 model.parameters.update({"base_url": GEMINI_BASE_URL, "api_key": GEMINI_API_KEY})
+        from langchain_openai import ChatOpenAI
+        from src.gemini_backend import RateLimitedGeminiChat
+        llm = RateLimitedGeminiChat(delegate=ChatOpenAI(
+            model=GEMINI_MODEL, api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL,
+            temperature=0, max_retries=0,
+            model_kwargs={"reasoning_effort": "low"},
+        ))
+    else:
+        llm = None
     if has_annoy:
-        rails = LLMRails(config)
+        rails = LLMRails(config, llm=llm)
     else:
         from src.nemo_exact_index import ExactMiniLMIndex, warm_model
         warm_model()
@@ -125,7 +134,7 @@ def setup_nemo_rails():
             def _get_embeddings_search_provider_instance(self, esp_config=None):
                 return ExactMiniLMIndex()
 
-        rails = RailsWithExactIndex(config)
+        rails = RailsWithExactIndex(config, llm=llm)
     return rails
 
 

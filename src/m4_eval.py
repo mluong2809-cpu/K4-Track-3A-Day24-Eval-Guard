@@ -2,12 +2,13 @@ from __future__ import annotations
 
 """Module 4: RAGAS Evaluation — 4 metrics + failure analysis."""
 
-import os, sys, json, math
+import os, sys, json, math, asyncio, time
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 from dataclasses import dataclass, asdict
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import TEST_SET_PATH
@@ -45,6 +46,7 @@ def evaluate_ragas(questions: list[str], answers: list[str],
     import torch  # noqa: F401
     from datasets import Dataset
     from langchain_openai import ChatOpenAI
+    from langchain_core.language_models.chat_models import BaseChatModel
     from langchain_community.embeddings import HuggingFaceEmbeddings
     from ragas import evaluate
     from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
@@ -57,7 +59,45 @@ def evaluate_ragas(questions: list[str], answers: list[str],
     llm_kwargs = {"model": llm_model, "api_key": api_key, "temperature": 0}
     if not OPENAI_API_KEY:
         llm_kwargs["base_url"] = GEMINI_BASE_URL
+        llm_kwargs["max_retries"] = 0
     llm = ChatOpenAI(**llm_kwargs)
+    if not OPENAI_API_KEY:
+        from openai import RateLimitError
+
+        request_lock = asyncio.Lock()
+        next_start = 0.0
+
+        class GeminiSingleCompletion(BaseChatModel):
+            """Use one candidate per request and respect Gemini's free-tier rate."""
+
+            delegate: Any
+
+            @property
+            def _llm_type(self) -> str:
+                return "gemini_single_completion"
+
+            def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+                kwargs.pop("n", None)
+                return self.delegate._generate(messages, stop=stop,
+                                               run_manager=run_manager, n=1, **kwargs)
+
+            async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+                nonlocal next_start
+                kwargs.pop("n", None)
+                async with request_lock:
+                    wait = next_start - time.monotonic()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                    next_start = time.monotonic() + 4.5
+                try:
+                    return await self.delegate._agenerate(messages, stop=stop,
+                                                          run_manager=run_manager, n=1, **kwargs)
+                except RateLimitError:
+                    async with request_lock:
+                        next_start = max(next_start, time.monotonic() + 65)
+                    raise
+
+        llm = GeminiSingleCompletion(delegate=llm)
     embedding_model = EMBEDDING_MODEL
     try:
         embeddings = HuggingFaceEmbeddings(
@@ -79,7 +119,7 @@ def evaluate_ragas(questions: list[str], answers: list[str],
         metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
         llm=llm,
         embeddings=embeddings,
-        run_config=RunConfig(timeout=90, max_retries=1, max_workers=2),
+        run_config=RunConfig(timeout=600, max_retries=2, max_workers=4),
         raise_exceptions=True,
     )
     frame = result.to_pandas()

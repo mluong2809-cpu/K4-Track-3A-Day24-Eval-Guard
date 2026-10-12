@@ -5,6 +5,7 @@ import hashlib
 import inspect
 import json
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -120,9 +121,13 @@ def judge_binary(question, answer, reference, *, client=None):
     """Provided bridge to 0/1 calibration. Never accepts human_label/human_note."""
     if client is None:
         client = judge_client()
+    if GEMINI_API_KEY and not OPENAI_API_KEY and os.getenv("LAB_LIVE_RUN") == "1":
+        from src.gemini_backend import wait_for_slot
+        wait_for_slot()
     response = client.chat.completions.create(
         model=JUDGE_MODEL, temperature=0,
         response_format={"type": "json_object"},
+        **({"reasoning_effort": "low"} if GEMINI_API_KEY and not OPENAI_API_KEY else {}),
         messages=[
             {"role": "system", "content": BINARY_SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(
