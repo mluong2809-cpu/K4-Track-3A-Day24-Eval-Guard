@@ -19,3 +19,7 @@ A proposed CI job first runs offline tests and the schema/source-hash checker. I
 ## Monitoring and improvements
 
 Track weekly metric means by distribution, cited policy versions, fallback rate, judge swap disagreement, clean false positives, attack pass rate, output blocks and per-layer P95. Review redacted false positives, adjust policy and add clean regression cases. Rerun the 50 questions whenever corpus, effective dates, model or prompt changes. The 50/20/8/4 lab sets are small; production evaluation needs larger de-identified traffic samples. Initial answer inspection suggests policy-version filtering for IDs 41/49, negation checks for ID 47 and VPN retrieval repair for ID 50. Reprioritize these from the measured bottom 10 when Phase A is available.
+
+NeMo 0.10.0 uses `src/nemo_exact_index.py` for its small flow indexes when native Annoy is unavailable on Windows. The local MiniLM model and exact cosine ranking were smoke-tested; future Phase C metadata/report should disclose this search backend. This does not replace NeMo input/output LLM checks.
+
+Offline Presidio check on the supplied input fixtures flagged attack ids 1-4 and no clean input. This checks only local PII detection, not NeMo attack blocking, output safety or sequential latency.

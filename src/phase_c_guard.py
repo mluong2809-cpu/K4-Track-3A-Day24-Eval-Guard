@@ -102,9 +102,10 @@ def setup_nemo_rails():
         rails.co    — câu từ chối Colang 1.0; built-in self-check flows được bật trong YAML
     """
     try:
-        import annoy  # noqa: F401 - NeMo's embedding index needs the native extension.
-    except ImportError as error:
-        raise RuntimeError("NeMo requires Annoy; install C++ Build Tools and annoy==1.17.3") from error
+        import annoy  # noqa: F401
+        has_annoy = True
+    except ImportError:
+        has_annoy = False
     from nemoguardrails import RailsConfig, LLMRails
     config = RailsConfig.from_path(GUARDRAILS_CONFIG_DIR)
     if GEMINI_API_KEY and not OPENAI_API_KEY:
@@ -112,7 +113,17 @@ def setup_nemo_rails():
             if model.type == "main":
                 model.model = GEMINI_MODEL
                 model.parameters.update({"base_url": GEMINI_BASE_URL, "api_key": GEMINI_API_KEY})
-    rails  = LLMRails(config)
+    if has_annoy:
+        rails = LLMRails(config)
+    else:
+        from src.nemo_exact_index import ExactMiniLMIndex, warm_model
+        warm_model()
+
+        class RailsWithExactIndex(LLMRails):
+            def _get_embeddings_search_provider_instance(self, esp_config=None):
+                return ExactMiniLMIndex()
+
+        rails = RailsWithExactIndex(config)
     return rails
 
 
